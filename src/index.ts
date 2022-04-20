@@ -40,7 +40,19 @@ class Sql<T> {
   }
   having(cb?: Callback) {}
   execute() {
-    return this.data;
+    let mappedData = [...this.data];
+
+    if (this.whereFuncs.length) {
+      mappedData = mappedData.filter((v) =>
+        this.whereFuncs.some((cb) => cb(v))
+      );
+    }
+
+    if (this.selector) {
+      mappedData = mappedData.map(this.selector);
+    }
+
+    return mappedData;
   }
 }
 
