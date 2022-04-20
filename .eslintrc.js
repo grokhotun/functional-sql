@@ -4,7 +4,12 @@ module.exports = {
     node: true,
     es2021: true,
   },
-  extends: ['airbnb-base', 'plugin:prettier/recommended', 'prettier'],
+  extends: [
+    'airbnb-base',
+    'plugin:prettier/recommended',
+    'prettier',
+    'plugin:jest/recommended',
+  ],
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 'latest',
@@ -15,7 +20,7 @@ module.exports = {
       typescript: {},
     },
   },
-  plugins: ['@typescript-eslint', 'prettier'],
+  plugins: ['@typescript-eslint', 'prettier', 'jest'],
   rules: {
     'import/prefer-default-export': 'off',
     'import/extensions': [
