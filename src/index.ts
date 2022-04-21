@@ -1,45 +1,43 @@
 type Callback<T = any> = (value: T) => any;
-type Sorter = <T = any>(value1: T, value2: T) => number;
+type Sorter = (value1: any, value2: any) => number;
 type Grouper<T = any> = (value: T) => string;
 
 const groupBy = <T>(list: T[], groupers: Grouper<T>[]): any => {
   if (!groupers.length) return list;
 
-  const keyGetter = groupers.shift();
-  const keys = {};
+  const copied = [...groupers];
+  const keyGetter = copied.shift();
+  const keysTypes: Record<string, string> = {};
 
-  const result = list.reduce<Record<string, any>>((grouped, item) => {
-    // @ts-ignore
-    const key = keyGetter(item);
+  return Object.entries(
+    list.reduce<Record<string, any>>((grouped, item) => {
+      const key = keyGetter!(item);
 
-    // @ts-ignore
-    keys[key] = typeof key;
+      keysTypes[key] = typeof key;
 
-    if (grouped[key]) {
-      grouped[key].push(item);
-    } else {
-      grouped[key] = [item];
-    }
+      if (grouped[key]) {
+        grouped[key].push(item);
+      } else {
+        grouped[key] = [item];
+      }
 
-    return grouped;
-  }, {});
+      return grouped;
+    }, {})
+  ).map(([groupName, values]) => {
+    const key =
+      keysTypes[groupName] === 'number' ? Number(groupName) : groupName;
 
-  return Object.entries(result).map(([groupName, values]) => {
-    // @ts-ignore
-    const key = keys[groupName] === 'number' ? Number(groupName) : groupName;
-
-    return [key, groupBy(values, groupers.slice())];
+    return [key, groupBy(values, copied)];
   });
 };
 
 class Sql<T> {
-  private selector: Callback<T> | null = null;
+  private data: any[] = [];
 
+  private selector: Callback<T> | null = null;
+  private orderByFunc: Sorter | null = null;
   private whereFuncs: Callback[] = [];
   private groupByFuncs: Grouper[] = [];
-
-  private data: any[] = [];
-  private orderByFunc: Sorter | null = null;
 
   constructor() {
     this.select = this.select.bind(this);
@@ -58,8 +56,13 @@ class Sql<T> {
     return this;
   }
 
-  from(data1: T[] = [], data2: T[] = []) {
-    this.data = [...data1, ...data2];
+  from(data1?: T[], data2?: T[]) {
+    this.data = data1 || [];
+
+    if (data2) {
+      this.data = data1 || [];
+    }
+
     return this;
   }
 
@@ -67,6 +70,7 @@ class Sql<T> {
     if (picker1) {
       this.whereFuncs.push(picker1);
     }
+
     return this;
   }
 
@@ -74,6 +78,7 @@ class Sql<T> {
     if (cb) {
       this.orderByFunc = cb;
     }
+
     return this;
   }
 
@@ -97,7 +102,7 @@ class Sql<T> {
     }
 
     if (this.groupByFuncs.length) {
-      mappedData = groupBy(mappedData, this.groupByFuncs);
+      mappedData = groupBy(mappedData, [...this.groupByFuncs]);
     }
 
     if (this.selector) {
