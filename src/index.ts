@@ -1,17 +1,18 @@
-type Callback<T = any> = (value: T) => any;
-type Sorter = (value1: any, value2: any) => number;
+type Selector<T = any, R = T> = (v: T) => R;
+type Picker<T = any> = (v: T) => boolean;
+type Sorter<T = any> = (v1: T, v2: T) => number;
 type Grouper<T = any> = (value: T) => string;
 
 const groupBy = <T>(list: T[], groupers: Grouper<T>[]): any => {
   if (!groupers.length) return list;
 
   const copied = [...groupers];
-  const keyGetter = copied.shift();
+  const keyPicker = copied.shift();
   const keysTypes: Record<string, string> = {};
 
   return Object.entries(
     list.reduce<Record<string, any>>((grouped, item) => {
-      const key = keyGetter!(item);
+      const key = keyPicker!(item);
 
       keysTypes[key] = typeof key;
 
@@ -31,14 +32,25 @@ const groupBy = <T>(list: T[], groupers: Grouper<T>[]): any => {
   });
 };
 
-class Sql<T> {
-  private data: any[] = [];
+const join = <T = any, K = any>(v1: T[], v2: K[]) => {
+  const result = [];
 
-  private selector: Callback<T> | null = null;
-  private orderByFunc: Sorter | null = null;
-  private havingFunc: Callback[] = [];
-  private whereFuncs: Callback[] = [];
-  private secondWhereFuncs: Callback[] = [];
+  for (const a of v1) {
+    for (const b of v2) {
+      result.push([a, b]);
+    }
+  }
+
+  return result;
+};
+
+class Sql {
+  private data: any[] = [];
+  private selector: Selector | null = null;
+  private orderer: Sorter | null = null;
+  private haver: Picker[] = [];
+  private joiners1: Picker[] = [];
+  private joiners2: Picker[] = [];
   private groupByFuncs: Grouper[] = [];
 
   constructor() {
@@ -51,45 +63,32 @@ class Sql<T> {
     this.execute = this.execute.bind(this);
   }
 
-  select(selector?: Callback<T>) {
+  select(selector?: Selector) {
     if (selector) {
       this.selector = selector;
     }
     return this;
   }
 
-  from(data1?: T[], data2?: T[]) {
-    if (data1) {
-      this.data = data1;
-    }
-
-    if (data1 && data2) {
-      this.data = data1.reduce<any>((joined, currentValue) => {
-        data2.forEach((v) => {
-          joined.push([currentValue, v]);
-        });
-
-        return joined;
-      }, []);
-    }
-
+  from(...data: any[]) {
+    this.data = data.reduce(join);
     return this;
   }
 
-  where(...fns: Callback[]) {
-    if (!this.whereFuncs.length) {
-      this.whereFuncs = fns;
-    } else if (!this.secondWhereFuncs.length) {
-      this.secondWhereFuncs = fns;
+  where(...where: Picker[]) {
+    if (!this.joiners1.length) {
+      this.joiners1 = where;
+    } else if (!this.joiners2.length) {
+      this.joiners2 = where;
     } else {
-      this.secondWhereFuncs = this.secondWhereFuncs.concat(fns);
+      this.joiners2 = [...this.joiners2, ...where];
     }
     return this;
   }
 
   orderBy(cb?: Sorter) {
     if (cb) {
-      this.orderByFunc = cb;
+      this.orderer = cb;
     }
 
     return this;
@@ -101,9 +100,9 @@ class Sql<T> {
     return this;
   }
 
-  having(cb?: Callback) {
+  having(cb?: Picker) {
     if (cb) {
-      this.havingFunc.push(cb);
+      this.haver.push(cb);
     }
     return this;
   }
@@ -111,15 +110,13 @@ class Sql<T> {
   execute() {
     let mappedData = [...this.data];
 
-    if (this.whereFuncs.length) {
-      mappedData = mappedData.filter((v) =>
-        this.whereFuncs.some((cb) => cb(v))
-      );
+    if (this.joiners1.length) {
+      mappedData = mappedData.filter((v) => this.joiners1.some((cb) => cb(v)));
     }
 
-    if (this.secondWhereFuncs && this.secondWhereFuncs.length) {
+    if (this.joiners2 && this.joiners2.length) {
       mappedData = mappedData.filter((row) => {
-        return this.secondWhereFuncs.every((fn) => fn(row));
+        return this.joiners2.every((fn) => fn(row));
       });
     }
 
@@ -127,9 +124,9 @@ class Sql<T> {
       mappedData = groupBy(mappedData, [...this.groupByFuncs]);
     }
 
-    if (this.havingFunc.length) {
+    if (this.haver.length) {
       mappedData = mappedData.filter((v) => {
-        return this.havingFunc.every((fn) => fn(v));
+        return this.haver.every((fn) => fn(v));
       });
     }
 
@@ -137,8 +134,8 @@ class Sql<T> {
       mappedData = mappedData.map(this.selector);
     }
 
-    if (this.orderByFunc) {
-      mappedData = mappedData.sort(this.orderByFunc);
+    if (this.orderer) {
+      mappedData = mappedData.sort(this.orderer);
     }
 
     return mappedData;

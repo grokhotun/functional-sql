@@ -1,4 +1,6 @@
 /* eslint-disable jest/valid-expect */
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-nocheck
 import { expect } from 'chai';
 import { query } from './index';
 
