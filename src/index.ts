@@ -36,7 +36,9 @@ class Sql<T> {
 
   private selector: Callback<T> | null = null;
   private orderByFunc: Sorter | null = null;
+  private havingFunc: Callback[] = [];
   private whereFuncs: Callback[] = [];
+  private secondWhereFuncs: Callback[] = [];
   private groupByFuncs: Grouper[] = [];
 
   constructor() {
@@ -57,20 +59,31 @@ class Sql<T> {
   }
 
   from(data1?: T[], data2?: T[]) {
-    this.data = data1 || [];
+    if (data1) {
+      this.data = data1;
+    }
 
-    if (data2) {
-      this.data = data1 || [];
+    if (data1 && data2) {
+      this.data = data1.reduce<any>((joined, currentValue) => {
+        data2.forEach((v) => {
+          joined.push([currentValue, v]);
+        });
+
+        return joined;
+      }, []);
     }
 
     return this;
   }
 
-  where(picker1?: Callback, picker2?: Callback) {
-    if (picker1) {
-      this.whereFuncs.push(picker1);
+  where(...fns: Callback[]) {
+    if (!this.whereFuncs.length) {
+      this.whereFuncs = fns;
+    } else if (!this.secondWhereFuncs.length) {
+      this.secondWhereFuncs = fns;
+    } else {
+      this.secondWhereFuncs = this.secondWhereFuncs.concat(fns);
     }
-
     return this;
   }
 
@@ -89,6 +102,9 @@ class Sql<T> {
   }
 
   having(cb?: Callback) {
+    if (cb) {
+      this.havingFunc.push(cb);
+    }
     return this;
   }
 
@@ -101,8 +117,20 @@ class Sql<T> {
       );
     }
 
+    if (this.secondWhereFuncs && this.secondWhereFuncs.length) {
+      mappedData = mappedData.filter((row) => {
+        return this.secondWhereFuncs.every((fn) => fn(row));
+      });
+    }
+
     if (this.groupByFuncs.length) {
       mappedData = groupBy(mappedData, [...this.groupByFuncs]);
+    }
+
+    if (this.havingFunc.length) {
+      mappedData = mappedData.filter((v) => {
+        return this.havingFunc.every((fn) => fn(v));
+      });
     }
 
     if (this.selector) {
