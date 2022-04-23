@@ -46,12 +46,12 @@ const join = <T = any, K = any>(v1: T[], v2: K[]) => {
 
 class Sql {
   private data: any[] = [];
-  private selector: Selector | null = null;
-  private orderer: Sorter | null = null;
-  private haver: Picker[] = [];
+  private selector: Selector | undefined;
+  private orderer: Sorter | undefined;
+  private havers: Picker[] = [];
   private joiners1: Picker[] = [];
   private joiners2: Picker[] = [];
-  private groupByFuncs: Grouper[] = [];
+  private groupers: Grouper[] = [];
 
   constructor() {
     this.select = this.select.bind(this);
@@ -64,9 +64,7 @@ class Sql {
   }
 
   select(selector?: Selector) {
-    if (selector) {
-      this.selector = selector;
-    }
+    this.selector = selector;
     return this;
   }
 
@@ -94,15 +92,14 @@ class Sql {
     return this;
   }
 
-  groupBy(...args: Grouper[]) {
-    this.groupByFuncs = args;
-
+  groupBy(...groupers: Grouper[]) {
+    this.groupers = groupers;
     return this;
   }
 
   having(cb?: Picker) {
     if (cb) {
-      this.haver.push(cb);
+      this.havers.push(cb);
     }
     return this;
   }
@@ -120,13 +117,13 @@ class Sql {
       });
     }
 
-    if (this.groupByFuncs.length) {
-      mappedData = groupBy(mappedData, [...this.groupByFuncs]);
+    if (this.groupers.length) {
+      mappedData = groupBy(mappedData, [...this.groupers]);
     }
 
-    if (this.haver.length) {
+    if (this.havers.length) {
       mappedData = mappedData.filter((v) => {
-        return this.haver.every((fn) => fn(v));
+        return this.havers.every((fn) => fn(v));
       });
     }
 
