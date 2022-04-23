@@ -3,7 +3,7 @@ type Picker<T = any> = (v: T) => boolean;
 type Sorter<T = any> = (v1: T, v2: T) => number;
 type Grouper<T = any> = (value: T) => string;
 
-const groupBy = <T>(list: T[], groupers: Grouper<T>[]): any => {
+const groupBy = <T = any>(list: T[], groupers: Grouper<T>[]): any[] => {
   if (!groupers.length) return list;
 
   const copied = [...groupers];
@@ -85,10 +85,7 @@ class Sql {
   }
 
   orderBy(cb?: Sorter) {
-    if (cb) {
-      this.orderer = cb;
-    }
-
+    this.orderer = cb;
     return this;
   }
 
@@ -105,27 +102,16 @@ class Sql {
   }
 
   execute() {
-    let mappedData = [...this.data];
+    let mappedData = this.data
+      .filter((v) => {
+        if (!this.joiners1.length) return true;
+        return this.joiners1.some((cb) => cb(v));
+      })
+      .filter((row) => this.joiners2.every((fn) => fn(row)));
 
-    if (this.joiners1.length) {
-      mappedData = mappedData.filter((v) => this.joiners1.some((cb) => cb(v)));
-    }
-
-    if (this.joiners2 && this.joiners2.length) {
-      mappedData = mappedData.filter((row) => {
-        return this.joiners2.every((fn) => fn(row));
-      });
-    }
-
-    if (this.groupers.length) {
-      mappedData = groupBy(mappedData, [...this.groupers]);
-    }
-
-    if (this.havers.length) {
-      mappedData = mappedData.filter((v) => {
-        return this.havers.every((fn) => fn(v));
-      });
-    }
+    mappedData = groupBy(mappedData, this.groupers).filter((v) =>
+      this.havers.every((fn) => fn(v))
+    );
 
     if (this.selector) {
       mappedData = mappedData.map(this.selector);
